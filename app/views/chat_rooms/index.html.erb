@@ -1,0 +1,102 @@
+<% if user_signed_in? %>
+<%= current_user.email %> / <%= link_to 'log out', destroy_user_session_path, method: "delete" %>
+<% else %>
+<%= link_to 'log in', new_user_session_path %>
+<% end %>
+
+
+<hr>
+
+
+<h1>Chat Rooms</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>방제</th>
+      <th>인원</th>
+      <th>방장</th>
+    </tr>
+  </thead>
+
+  <tbody class="chat_room_list">
+    <% @chat_rooms.reverse.each do |chat_room| %>
+      <tr class="chat_room_<%=chat_room.id%>">
+        <td class="chat_room_title<%=chat_room.id%>"><%= chat_room.title %></td>
+        <td><span class="current<%=chat_room.id%>"><%= chat_room.admissions.size %></span>
+        /<span class="chat_room_max<%=chat_room.id%>"><%= chat_room.max_count %></span></td>
+        <td class="chat_room_master<%= chat_room.id%>"><%= chat_room.master_id%></td>
+        <td><%= link_to 'Show', chat_room %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<%= link_to 'New Chat Room', new_chat_room_path %>
+
+<script>
+$(document).on('ready', function(){
+  // 방이 만들어졌을 때, 방에 대한 데이터를 받아서 
+  // 방 목록에 추가해주는 js function
+  function room_created(data) {
+    $('.chat_room_list').prepend(`
+      <tr class="chat_room_${data.id}">
+        <td class="chat_room_title${data.id}">${data.title}</td>
+        <td><span class="current${data.id}">0</span>/
+        <span class="chat_room_max${data.id}">${data.max_count}</span></td>
+        <td class="chat_room_master${data.id}">${data.master_id}</td>
+        <td><a href= "/chat_rooms/${data.id}">Show</a></td>
+      </tr>`);
+      // alert("방이 추가됨~");
+  }
+  
+  function user_joined(data){
+    var current =  $(`.current${data.id}`);
+    current.text(parseInt(current.text()) + 1)
+  }
+  function user_exit(data){
+    var current =  $(`.current${data.id}`);
+    current.text(parseInt(current.text()) - 1)
+  }
+  function room_destroy(data){
+    $(`.chat_room_${data.id}`).remove();
+  }
+  function room_update(data){
+    console.log(data)
+    $(`.chat_room_title${data.id}`).text(data.title);
+    $(`.chat_room_max${data.id}`).text(data.max_count);
+    $(`.chat_room_master${data.id}`).text(data.master_id);
+  }
+  
+  
+  
+  // chat_room/ create
+  var pusher = new Pusher("<%=ENV["pusher_key"]%>", {
+    cluster: "<%= ENV["pusher_cluster"] %>",
+    encrypted: true
+  });
+
+  var channel = pusher.subscribe('chat_room');
+  channel.bind('create', function(data) {
+    room_created(data);
+  });
+  
+  channel.bind('join', function(data) {
+    user_joined(data);
+  });
+  
+  channel.bind('exit', function(data){
+    user_exit(data);
+  });
+  
+  channel.bind('destroy', function(data){
+    room_destroy(data);
+  });
+  
+  channel.bind('update', function(data){
+    room_update(data);
+  })
+});
+</script>

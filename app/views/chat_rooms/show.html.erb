@@ -1,0 +1,96 @@
+<%= current_user.email %>
+
+<h3>현재 접속한 사람</h3>
+<div class="joined_user_list">
+  <% @chat_room.users.each do |user|%>
+    <p class="user-<%=user.id%>"><%= user.email %></p>
+  <% end %>
+</div>
+
+<!--chat area-->
+<hr>
+  <% unless current_user.joined_room?(@chat_room) %>
+    <%= link_to 'Join', join_chat_room_path(@chat_room), method: "post", class: "join_room", remote: true %> |
+  <% else %>
+    <%= link_to 'Exit', exit_chat_room_path(@chat_room), method: "delete", remote: true, data: {confirm: "이 방을 나가시겠습니까?"} %>
+  <% end %>
+    <% if @chat_room.master_user?(current_user) %>
+      <%= link_to 'Delete', chat_room_path(@chat_room), method: "delete", remote: true, data: {confirm: "이 방을 삭제할꺼임?"}%>
+    <% end %>
+<hr>
+
+<% if current_user.joined_room?(@chat_room) %>
+  <!--chat list-->
+  <div class="chat_list">
+    <% @chat_room.chats.each do |chat|%>
+      <p><%= chat.user.email %>: <%= chat.message %><br><small><%= chat.created_at %></small></p>
+    <% end %>
+  </div>
+  
+  <!--chat form-->
+  <%= form_tag("/chat_rooms/#{@chat_room.id}/chat", remote: true) do %>
+    <%= text_field_tag :message %>
+  <% end %>
+<% end %>
+<hr>
+
+<%= link_to 'Edit', edit_chat_room_path(@chat_room) %> |
+<%= link_to 'Back', chat_rooms_path %>
+
+
+<script>
+$(document).on('ready', function(){
+    
+  function user_joined(data) {
+      $('.joined_user_list').append(`<p class="user-${data.user_id}">${data.email}</p>`)
+      $('.chat_list').append(`<p><strong>${data.email}님이 입장하셨습니다.</strong></p>`)
+  }
+    
+  function user_chat(data) { 
+    $('.chat_list').append(`<p>${data.email}: ${data.message}<br><small>${data.created_at}</small></p>`);
+  }  
+  function user_exit(data){
+    $(`.user-${data.user_id}`).remove();
+    $('.chat_list').append(`<p><strong>${data.email}님이 나가셨습니다.</strong></p>`);
+
+  }
+  function room_destroy(data){
+    window.location.href = '../';
+    alert("방이 폭파되었습니다.")
+    
+  }
+  function room_update(data){
+    location.reload;
+  }
+  
+  
+    
+    
+  var pusher = new Pusher("<%=ENV["pusher_key"]%>", {
+    cluster: "<%= ENV["pusher_cluster"] %>",
+    encrypted: true
+  });
+
+  var channel = pusher.subscribe('chat_room_<%= @chat_room.id %>');
+  
+  channel.bind('join', function(data){
+    // console.log(data);
+    user_joined(data);
+  });
+  channel.bind('chat', function(data){
+    // console.log(data);
+    user_chat(data);
+  });
+  channel.bind('Exit', function(data){
+    // console.log(data);
+    user_exit(data);
+  });
+  channel.bind('destroy', function(data){
+    room_destroy(data);
+  })
+  channel.bind('update', function(data){
+    room_update(data);
+  })
+  
+});
+</script>
